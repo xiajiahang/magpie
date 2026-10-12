@@ -70,6 +70,34 @@ func piScopeWith(settings, ref string) error {
 	return edit.SetJSON(settings, edit.KV{Path: "enabledModels", Value: append(pats, ref)})
 }
 
+// piScopeRename moves a renamed provider's references, keeping thinking
+// suffixes and patterns. Apply may have appended the new default already;
+// only duplicate references produced by this rename are removed.
+func piScopeRename(settings, from, to string) (bool, error) {
+	pats := piScope(settings)
+	old, now := magpieID+"/"+from+"/", magpieID+"/"+to+"/"
+	renamed := map[string]bool{}
+	for i, p := range pats {
+		if rest, ok := strings.CutPrefix(p, old); ok && from != to {
+			pats[i] = now + rest
+			renamed[pats[i]] = true
+		}
+	}
+	if len(renamed) == 0 {
+		return false, nil
+	}
+	seen := map[string]bool{}
+	kept := pats[:0]
+	for _, p := range pats {
+		if renamed[p] && seen[p] {
+			continue
+		}
+		seen[p] = true
+		kept = append(kept, p)
+	}
+	return true, edit.SetJSON(settings, edit.KV{Path: "enabledModels", Value: kept})
+}
+
 // piScopeWithout takes magpie's models out of Pi's enabledModels once
 // magpie's provider is gone from models.json, where they would name nothing.
 // A list left with nothing is removed, never written empty.

@@ -955,6 +955,9 @@ func piLikeKeyed(at place, id, name, dir string, key func() string) *Agent {
 	return &Agent{
 		ID: id, Name: name, Icon: id, Bin: id, Dir: dir, Path: path, Spelled: prefixed,
 		Restore: before.restore,
+		RenameRefs: func(from, to string) (bool, error) {
+			return piScopeRename(path, from, to)
+		},
 		Check: func() string {
 			if p, _ := get("defaultProvider"); p != magpieID {
 				return ""

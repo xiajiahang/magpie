@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -138,4 +139,78 @@ func mustGet(t *testing.T, path, key string) string {
 		t.Fatalf("%s: no %s in %s", path, key, readFile(path))
 	}
 	return v
+}
+
+// A provider rename moves the scoped models too, including ones other than
+// the default, while keeping the user's own models, patterns and comments.
+func TestPiEnabledModelsRenamed(t *testing.T) {
+	for _, makeAgent := range []func(string) *Agent{pi, omo, primeAgent} {
+		t.Run(makeAgent(t.TempDir()).ID, func(t *testing.T) {
+			home := syncHome(t)
+			a := makeAgent(home)
+			settings := a.Path
+			writeFile(t, settings, `{
+ // my models
+ "enabledModels": ["xai/grok-4.6:high", "magpie/relay/glm-4.6", "magpie/relay/other:low", "magpie/relay/*", "magpie/relay-extra/keep"],
+ "defaultProvider": "xai", "defaultModel": "grok-4.6"
+}`)
+			if err := a.Apply("model", "magpie/relay/glm-4.6"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := RenameProvider("relay", "renamed"); err != nil {
+				t.Fatal(err)
+			}
+			want := []string{"xai/grok-4.6:high", "magpie/renamed/glm-4.6", "magpie/renamed/other:low", "magpie/renamed/*", "magpie/relay-extra/keep"}
+			if got := piScope(settings); !slices.Equal(got, want) {
+				t.Fatalf("scope after rename = %q, want %q", got, want)
+			}
+			if got := a.Field("model").Get(); got != "magpie/renamed/glm-4.6" {
+				t.Fatalf("model after rename = %q", got)
+			}
+			if !strings.Contains(readFile(settings), "// my models") {
+				t.Fatal("user comment lost")
+			}
+			if err := a.Disconnect(); err != nil {
+				t.Fatal(err)
+			}
+			want = []string{"xai/grok-4.6:high", "magpie/renamed/*"}
+			if got := piScope(settings); !slices.Equal(got, want) {
+				t.Fatalf("scope after disconnect = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+// Scoped references follow a rename even when Pi starts on its own model.
+// An unrelated, missing or empty scope is not rewritten.
+func TestPiEnabledModelsRenameWithOwnDefault(t *testing.T) {
+	for _, c := range []struct {
+		name, scope string
+		want        []string
+	}{
+		{"native default", `,"enabledModels":["xai/grok-4.6","magpie/relay/glm-4.6:high"]`, []string{"xai/grok-4.6", "magpie/renamed/glm-4.6:high"}},
+		{"unrelated", `,"enabledModels":["xai/grok-4.6","xai/grok-4.6","magpie/relay-extra/keep"]`, nil},
+		{"missing", "", nil},
+		{"empty", `,"enabledModels":[]`, nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			home := syncHome(t)
+			a := pi(home)
+			before := "{ // my defaults\n \"defaultProvider\":\"xai\",\"defaultModel\":\"grok-4.6\"" + c.scope + "}\n"
+			writeFile(t, a.Path, before)
+			if _, err := RenameProvider("relay", "renamed"); err != nil {
+				t.Fatal(err)
+			}
+			if c.want == nil {
+				if got := readFile(a.Path); got != before {
+					t.Fatalf("unrelated settings changed:\n%s", got)
+				}
+			} else if got := piScope(a.Path); !slices.Equal(got, c.want) {
+				t.Fatalf("scope = %q, want %q", got, c.want)
+			}
+			if got := a.Field("model").Get(); got != "xai/grok-4.6" {
+				t.Fatalf("native default changed to %q", got)
+			}
+		})
+	}
 }
