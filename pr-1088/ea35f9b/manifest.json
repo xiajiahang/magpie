@@ -1,0 +1,29 @@
+{
+  "summary": "把 OpenClaw 注册为可接入的 Agent，并在 Agent 页底部的「安装其他 Agent」列表里为它加上官方彩色图标和 shell / npm 两条安装命令；接入后它的模型选择器会显示 /model 提示，并新增只读与 $include 配置的中/繁/日/德错误文案。",
+  "scenes": [
+    {
+      "title": "安装列表里的 OpenClaw",
+      "shots": [
+        {
+          "file": "01-agents-install-closed.png",
+          "caption": "Agent 页底部，「安装其他 Agent」入口",
+          "width": 2560
+        },
+        {
+          "file": "02-agents-install-openclaw.png",
+          "caption": "展开后的安装列表",
+          "width": 2168
+        }
+      ]
+    }
+  ],
+  "video": "preview.mp4",
+  "poster": "poster.png",
+  "errors": [],
+  "leak": false,
+  "skipped": null,
+  "mismatch": "描述说图标采用 OpenClaw 官方 favicon（openclaw.ai/favicon.svg），diff 里实际新增的是一份自绘的 openclaw-color.svg。",
+  "unseen": "沙箱里没有安装也没有配置 OpenClaw，所以 Agent 列表中的 OpenClaw 行、接入开关、模型下拉里的 /model 提示都无法出现；只读与 $include 两条中文错误文案要等 OpenClaw 已接入且配置为只读/分文件时才显示，本次也看不到；WSL 条目与断开预览同理。",
+  "interactive": true,
+  "pages": 1
+}
